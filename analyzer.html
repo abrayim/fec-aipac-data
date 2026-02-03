@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FEC Israel PAC Analyzer - Campaign Finance Contributions</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // API KEY CONFIGURATION
+        // To use your own OpenFEC API key (recommended for higher rate limits):
+        // 1. Get a free key at https://api.data.gov/signup/
+        // 2. Replace 'DEMO_KEY' below with your key
+        // DEMO_KEY limit: 30 calls/hour | Your own key: 1000 calls/hour
+        const EMBEDDED_API_KEY = 'mkiAiUz0a0Ion975USiQNN6l1Q2uzMWQeZJbfQvk';
+
+        // Israel-related PAC IDs from TrackAIPAC.com
+        const ISRAEL_PAC_IDS = {
+            'C00797670': 'American Israel Public Affairs Committee Political Action Committee',
+            'C00492579': 'American Principles',
+            'C00687657': 'American Pro-Israel PAC',
+            'C00138701': 'Americans for Good Government',
+            'C00113019': 'Americans United in Support of Democracy / Citizens Concerned for the National Interest',
+            'C00155713': 'BAYPAC',
+            'C00381624': 'Because I Care PAC',
+            'C00204388': 'Bi-County PAC',
+            'C00110585': 'Citizens Organized Political Action Committee',
+            'C00187526': 'City PAC',
+            'C00152579': 'Delaware Valley PAC',
+            'C00429571': 'California Jewish Democrats-FED / Democrats for Israel Committee',
+            'C00710848': 'DMFI PAC (Democratic Majority for Israel)',
+            'C00265470': 'Friends of Israel',
+            'C00141747': 'Friends of Israel Political Action Committee / San Franciscans for Good Government',
+            'C00169136': 'Garden State PAC',
+            'C00473249': 'Grand Canyon State Caucus',
+            'C00131557': 'Heartland PAC',
+            'C00158865': 'Hudson Valley PAC',
+            'C00557926': 'I-PAC JAX',
+            'C00815753': 'J Street Action Fund',
+            'C00139659': 'Joint Action Committee for Political Affairs',
+            'C00441949': 'JStreetPAC',
+            'C00144170': 'Louisianians for American Security Political Action Committee',
+            'C00195024': 'Maryland Association for Concerned Citizens Political Action Committee',
+            'C00165944': 'Mid Manhattan PAC',
+            'C00199950': 'MOPAC',
+            'C00189696': 'Multi-Issue PAC',
+            'C00147983': 'National Action Committee',
+            'C00150995': 'National PAC',
+            'C00247403': 'NorPAC / North Jersey PAC',
+            'C00302414': 'Northwest PAC',
+            'C00232611': 'PAC of Cherry Hill New Jersey',
+            'C00878801': 'Preserve America PAC (Miriam Adelson)',
+            'C00756882': 'Preserve America PAC (Sheldon Adelson)',
+            'C00740936': 'Pro-Israel America Action Fund',
+            'C00699470': 'Pro-Israel America PAC',
+            'C90012063': 'Republican Jewish Coalition',
+            'C00345132': 'Republican Jewish Coalition-Political Action Committee (RJC-PAC)',
+            'C00148155': 'St. Louisans for Better Government',
+            'C00378216': 'SunPAC',
+            'C00102368': 'The Desert Caucus',
+            'C00135541': 'To Protect Our Heritage PAC',
+            'C00799031': 'United Democracy Project (UDP)',
+            'C00152280': 'United PAC (Illinois)',
+            'C00127811': 'US Israel PAC / Florida Congressional Committee',
+            'C00138560': 'Washington PAC',
+            'C00203182': "Women's Pro-Israel National PAC",
+            'C00236596': 'World Alliance for Israel PAC / Women\'s Alliance for Israel',
+            'C00305607': 'Young Jewish Leadership PAC',
+            'C00891259': 'Zioness PAC',
+            'C00548628': 'Zionist Organization of America'
+        };
+
+        function FECAnalyzer() {
+            const [searchQuery, setSearchQuery] = useState('');
+            const [searchResults, setSearchResults] = useState([]);
+            const [searching, setSearching] = useState(false);
+            const [selectedCandidate, setSelectedCandidate] = useState(null);
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState(null);
+            const [error, setError] = useState(null);
+            const [showPacList, setShowPacList] = useState(false);
+            const searchTimeoutRef = useRef(null);
+
+            const searchCandidates = async (query) => {
+                if (!query.trim() || query.length < 2) {
+                    setSearchResults([]);
+                    return;
+                }
+
+                setSearching(true);
+                setError(null);
+
+                try {
+                    const response = await fetch(
+                        `https://api.open.fec.gov/v1/candidates/search/?api_key=${EMBEDDED_API_KEY}&q=${encodeURIComponent(query)}&sort=name&per_page=20`
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    setSearchResults(data.results || []);
+                } catch (err) {
+                    setError(`Search error: ${err.message}`);
+                    setSearchResults([]);
+                } finally {
+                    setSearching(false);
+                }
+            };
+
+            const handleSearchInput = (value) => {
+                setSearchQuery(value);
+                
+                if (searchTimeoutRef.current) {
+                    clearTimeout(searchTimeoutRef.current);
+                }
+
+                searchTimeoutRef.current = setTimeout(() => {
+                    searchCandidates(value);
+                }, 300);
+            };
+
+            const selectCandidate = async (candidate) => {
+                setSelectedCandidate(candidate);
+                setSearchResults([]);
+                setSearchQuery('');
+                setLoading(true);
+                setError(null);
+                setResults(null);
+
+                try {
+                    // Get candidate's committees
+                    const committeesResponse = await fetch(
+                        `https://api.open.fec.gov/v1/candidate/${candidate.candidate_id}/committees/?api_key=${EMBEDDED_API_KEY}`
+                    );
+
+                    if (!committeesResponse.ok) {
+                        throw new Error(`Failed to fetch committees: ${committeesResponse.status}`);
+                    }
+
+                    const committeesData = await committeesResponse.json();
+                    const committees = committeesData.results || [];
+
+                    if (committees.length === 0) {
+                        setError('No committees found for this candidate');
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Fetch contributions for all committees
+                    const allContributions = [];
+                    
+                    for (const committee of committees) {
+                        await fetchContributionsForCommittee(committee.committee_id, allContributions);
+                    }
+
+                    if (allContributions.length === 0) {
+                        setError('No Israel-related PAC contributions found for this candidate');
+                        setLoading(false);
+                        return;
+                    }
+
+                    analyzeContributions(allContributions);
+                } catch (err) {
+                    setError(`Error: ${err.message}`);
+                    setLoading(false);
+                }
+            };
+
+            const fetchContributionsForCommittee = async (committeeId, allContributions) => {
+                // Fetch contributions from Israel PACs only (server-side filter)
+                const pacIds = Object.keys(ISRAEL_PAC_IDS);
+                const batchSize = 10; // API accepts up to ~10 IDs at once
+                
+                for (let i = 0; i < pacIds.length; i += batchSize) {
+                    const batch = pacIds.slice(i, i + batchSize);
+                    const contributorIdFilter = batch.join(',');
+                    
+                    let page = 1;
+                    let hasMore = true;
+
+                    while (hasMore && page <= 20) {
+                        try {
+                            // Filter server-side for specific contributor IDs
+                            const url = `https://api.open.fec.gov/v1/schedules/schedule_a/?api_key=${EMBEDDED_API_KEY}&committee_id=${committeeId}&contributor_id=${contributorIdFilter}&per_page=100&page=${page}&sort=-contribution_receipt_date`;
+                            
+                            const response = await fetch(url);
+
+                            if (!response.ok) {
+                                if (response.status === 429) {
+                                    throw new Error('Rate limit reached. Please wait an hour and try again.');
+                                }
+                                break;
+                            }
+
+                            const data = await response.json();
+                            const contributions = data.results || [];
+
+                            // Filter for entity_type = PAC
+                            const pacContributions = contributions.filter(c => c.entity_type === 'PAC');
+                            allContributions.push(...pacContributions);
+
+                            // Check if there are more pages
+                            hasMore = data.pagination && data.pagination.pages > page;
+                            page++;
+                            
+                            if (contributions.length === 0) {
+                                break;
+                            }
+                        } catch (err) {
+                            if (err.message.includes('Rate limit')) {
+                                throw err; // Propagate rate limit errors
+                            }
+                            break;
+                        }
+                    }
+                }
+            };
+
+            const analyzeContributions = (contributions) => {
+                const allYears = new Set();
+                contributions.forEach(contrib => {
+                    if (contrib.contribution_receipt_date) {
+                        const year = new Date(contrib.contribution_receipt_date).getFullYear();
+                        if (!isNaN(year)) {
+                            allYears.add(year);
+                        }
+                    }
+                });
+                const sortedYears = Array.from(allYears).sort();
+
+                // Group by PAC
+                const groupedByPac = {};
+                let totalAmount = 0;
+
+                contributions.forEach(contrib => {
+                    const pacId = contrib.contributor_id;
+                    const amount = parseFloat(contrib.contribution_receipt_amount) || 0;
+                    totalAmount += amount;
+
+                    if (!groupedByPac[pacId]) {
+                        groupedByPac[pacId] = {
+                            pacName: ISRAEL_PAC_IDS[pacId] || contrib.contributor_name || 'Unknown PAC',
+                            contributions: [],
+                            total: 0,
+                            byYear: {}
+                        };
+                        sortedYears.forEach(year => {
+                            groupedByPac[pacId].byYear[year] = 0;
+                        });
+                    }
+
+                    groupedByPac[pacId].contributions.push({
+                        amount: amount,
+                        date: contrib.contribution_receipt_date,
+                        committeeId: contrib.committee_id,
+                        committeeName: contrib.committee_name
+                    });
+                    groupedByPac[pacId].total += amount;
+
+                    if (contrib.contribution_receipt_date) {
+                        const year = new Date(contrib.contribution_receipt_date).getFullYear();
+                        if (!isNaN(year)) {
+                            groupedByPac[pacId].byYear[year] += amount;
+                        }
+                    }
+                });
+
+                setResults({
+                    totalMatches: contributions.length,
+                    totalAmount: totalAmount,
+                    contributions: contributions,
+                    groupedByPac: groupedByPac,
+                    years: sortedYears
+                });
+                setLoading(false);
+            };
+
+            const formatCurrency = (amount) => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 2
+                }).format(amount);
+            };
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'Unknown';
+                try {
+                    return new Date(dateStr).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    });
+                } catch {
+                    return dateStr;
+                }
+            };
+
+            const getOfficeLabel = (candidate) => {
+                const parts = [];
+                if (candidate.office_full) parts.push(candidate.office_full);
+                if (candidate.state) parts.push(candidate.state);
+                if (candidate.district && candidate.district !== '00') parts.push(`District ${candidate.district}`);
+                return parts.join(' - ') || 'Unknown Office';
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 py-8 px-4">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
+                            <div>
+                                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                                    FEC Israel-Related PAC Analyzer
+                                </h1>
+                                <p className="text-gray-600 mb-4">
+                                    Search for a federal candidate to analyze their contributions from Israel-related PACs
+                                </p>
+                                
+                                <button
+                                    onClick={() => setShowPacList(!showPacList)}
+                                    className="text-sm text-blue-600 hover:text-blue-800 underline mb-4"
+                                >
+                                    {showPacList ? 'Hide' : 'Show'} list of {Object.keys(ISRAEL_PAC_IDS).length} tracked Israel-related PACs
+                                </button>
+                                
+                                {showPacList && (
+                                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 max-h-96 overflow-y-auto">
+                                        <h3 className="font-semibold text-gray-900 mb-2 text-sm">Tracked Israel-Related PACs ({Object.keys(ISRAEL_PAC_IDS).length}):</h3>
+                                        <ul className="text-xs text-gray-700 space-y-1">
+                                            {Object.entries(ISRAEL_PAC_IDS).sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => (
+                                                <li key={id} className="border-b border-gray-200 pb-1">
+                                                    <span className="font-medium">{name}</span>
+                                                    <span className="text-gray-500 ml-2 font-mono">({id})</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <p className="text-xs text-gray-500 mt-3">
+                                            Source: <a href="https://trackaipac.com" target="_blank" rel="noopener noreferrer" className="underline">TrackAIPAC.com</a>
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {!selectedCandidate && (
+                                <div className="relative mt-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Search for Candidate
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => handleSearchInput(e.target.value)}
+                                        placeholder="Type candidate name (e.g., Josh Riley, Pat Ryan)..."
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                                    />
+                                    
+                                    {searching && (
+                                        <div className="absolute right-3 top-11 text-gray-400">
+                                            <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                                        </div>
+                                    )}
+
+                                    {searchResults.length > 0 && (
+                                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-y-auto">
+                                            {searchResults.map((candidate) => (
+                                                <button
+                                                    key={candidate.candidate_id}
+                                                    onClick={() => selectCandidate(candidate)}
+                                                    className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-200 last:border-b-0"
+                                                >
+                                                    <div className="font-semibold text-gray-900">
+                                                        {candidate.name}
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        {getOfficeLabel(candidate)} • {candidate.party_full || candidate.party || 'Unknown Party'}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 font-mono mt-1">
+                                                        ID: {candidate.candidate_id}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {selectedCandidate && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h2 className="font-bold text-blue-900 text-lg">
+                                                {selectedCandidate.name}
+                                            </h2>
+                                            <p className="text-blue-700 text-sm">
+                                                {getOfficeLabel(selectedCandidate)} • {selectedCandidate.party_full || selectedCandidate.party}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedCandidate(null);
+                                                setResults(null);
+                                                setError(null);
+                                            }}
+                                            className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
+                                        >
+                                            Search Again
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {loading && (
+                                <div className="text-center py-12">
+                                    <div className="inline-block animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
+                                    <p className="text-gray-600 font-medium">Analyzing contributions from Israel-related PACs...</p>
+                                    <p className="text-gray-500 text-sm mt-2">This may take a moment</p>
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <p className="text-red-800 font-medium">Error:</p>
+                                    <p className="text-red-600 text-sm">{error}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {results && (
+                            <div className="space-y-6">
+                                {/* Summary Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-white rounded-lg shadow p-6">
+                                        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                                            Total Contributions
+                                        </h3>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">
+                                            {results.totalMatches}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg shadow p-6">
+                                        <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+                                            Total Amount
+                                        </h3>
+                                        <p className="text-3xl font-bold text-green-600 mt-2">
+                                            {formatCurrency(results.totalAmount)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Summary by PAC Table */}
+                                <div className="bg-white rounded-lg shadow overflow-hidden">
+                                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                                        <h2 className="text-xl font-bold text-gray-900">
+                                            Summary by PAC
+                                        </h2>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50">
+                                                        PAC Name
+                                                    </th>
+                                                    {results.years.map(year => (
+                                                        <th key={year} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                            {year}
+                                                        </th>
+                                                    ))}
+                                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-100">
+                                                        Total
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {Object.entries(results.groupedByPac)
+                                                    .sort((a, b) => b[1].total - a[1].total)
+                                                    .map(([pacId, data]) => (
+                                                    <tr key={pacId} className="hover:bg-gray-50">
+                                                        <td className="px-6 py-4 sticky left-0 bg-white">
+                                                            <div className="text-sm font-medium text-gray-900">
+                                                                {data.pacName}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 font-mono mt-1">
+                                                                {pacId}
+                                                            </div>
+                                                        </td>
+                                                        {results.years.map(year => (
+                                                            <td key={year} className="px-4 py-4 text-right text-sm text-gray-700 whitespace-nowrap">
+                                                                {data.byYear[year] > 0 ? formatCurrency(data.byYear[year]) : '-'}
+                                                            </td>
+                                                        ))}
+                                                        <td className="px-6 py-4 text-right text-sm font-bold text-green-600 bg-gray-50 whitespace-nowrap">
+                                                            {formatCurrency(data.total)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                                                <tr>
+                                                    <td className="px-6 py-4 sticky left-0 bg-gray-100">
+                                                        <div className="text-sm font-bold text-gray-900">
+                                                            TOTAL ALL PACS
+                                                        </div>
+                                                    </td>
+                                                    {results.years.map(year => {
+                                                        const yearTotal = Object.values(results.groupedByPac)
+                                                            .reduce((sum, pac) => sum + (pac.byYear[year] || 0), 0);
+                                                        return (
+                                                            <td key={year} className="px-4 py-4 text-right text-sm font-bold text-gray-900 whitespace-nowrap">
+                                                                {formatCurrency(yearTotal)}
+                                                            </td>
+                                                        );
+                                                    })}
+                                                    <td className="px-6 py-4 text-right text-sm font-bold text-green-700 bg-gray-100 whitespace-nowrap">
+                                                        {formatCurrency(results.totalAmount)}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Detailed Breakdown */}
+                                <div className="bg-white rounded-lg shadow p-6">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-4">
+                                        Detailed Breakdown by PAC
+                                    </h2>
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        Individual transactions for each PAC
+                                    </p>
+                                    <div className="space-y-4">
+                                        {Object.entries(results.groupedByPac)
+                                            .sort((a, b) => b[1].total - a[1].total)
+                                            .map(([pacId, data]) => (
+                                            <div key={pacId} className="border border-gray-200 rounded-lg p-4">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex-1">
+                                                        <h3 className="font-semibold text-gray-900">
+                                                            {data.pacName}
+                                                        </h3>
+                                                        <p className="text-xs text-gray-500 font-mono">
+                                                            {pacId}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="font-bold text-green-600">
+                                                            {formatCurrency(data.total)}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {data.contributions.length} contribution{data.contributions.length !== 1 ? 's' : ''}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3 space-y-2">
+                                                    {data.contributions
+                                                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                                        .map((contrib, idx) => (
+                                                        <div key={idx} className="bg-gray-50 p-3 rounded text-sm">
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="flex-1">
+                                                                    <p className="text-gray-700">
+                                                                        <span className="font-medium">Date:</span> {formatDate(contrib.date)}
+                                                                    </p>
+                                                                    {contrib.committeeName && (
+                                                                        <p className="text-gray-600 text-xs mt-1">
+                                                                            To: {contrib.committeeName}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <p className="font-semibold text-green-600">
+                                                                    {formatCurrency(contrib.amount)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Data Source Attribution */}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h3 className="font-semibold text-blue-900 mb-2 text-sm">About this data</h3>
+                                    <p className="text-sm text-blue-800 mb-2">
+                                        This tool analyzes official FEC campaign finance records to identify contributions from {Object.keys(ISRAEL_PAC_IDS).length} Israel-related Political Action Committees.
+                                    </p>
+                                    <p className="text-xs text-blue-700">
+                                        <strong>PAC List Source:</strong>{' '}
+                                        <a 
+                                            href="https://trackaipac.com" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="underline hover:text-blue-900"
+                                        >
+                                            TrackAIPAC.com
+                                        </a>
+                                        <br />
+                                        <strong>Contribution Data:</strong>{' '}
+                                        <a 
+                                            href="https://www.fec.gov" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="underline hover:text-blue-900"
+                                        >
+                                            Federal Election Commission
+                                        </a>
+                                        {' '}via{' '}
+                                        <a 
+                                            href="https://api.open.fec.gov/developers/" 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="underline hover:text-blue-900"
+                                        >
+                                            OpenFEC API
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<FECAnalyzer />, document.getElementById('root'));
+    </script>
+</body>
+</html>
