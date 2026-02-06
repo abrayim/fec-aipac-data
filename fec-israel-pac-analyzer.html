@@ -3,402 +3,404 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FEC Israel PAC Analyzer (Corrected Methodology)</title>
+    <title>Pro-Israel PAC Contribution Analyzer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0f1419;
-            --bg-secondary: #1a1f26;
-            --bg-tertiary: #242b33;
-            --bg-highlight: #2d363f;
-            --text-primary: #e7e9ea;
-            --text-secondary: #8b98a5;
-            --text-muted: #6e7b8b;
-            --accent-green: #00ba7c;
-            --accent-green-dim: rgba(0, 186, 124, 0.15);
-            --accent-blue: #1d9bf0;
-            --accent-blue-dim: rgba(29, 155, 240, 0.15);
-            --accent-orange: #ff7a00;
-            --accent-orange-dim: rgba(255, 122, 0, 0.15);
-            --accent-red: #f4212e;
-            --border-color: #2f3336;
-            --border-light: #3a4249;
+            --bg: #ffffff;
+            --bg-card: #f8f9fa;
+            --bg-hover: #f0f1f3;
+            --bg-input: #ffffff;
+            --border: #e0e3e7;
+            --border-light: #eaecef;
+            --text: #1a1d21;
+            --text-secondary: #5a6068;
+            --text-muted: #8c939b;
+            --accent: #2563eb;
+            --accent-dim: rgba(37, 99, 235, 0.08);
+            --green: #16a34a;
+            --green-dim: rgba(22, 163, 74, 0.08);
+            --orange: #d97706;
+            --orange-dim: rgba(217, 119, 6, 0.08);
+            --red: #dc2626;
+            --red-dim: rgba(220, 38, 38, 0.08);
+            --purple: #7c3aed;
+            --purple-dim: rgba(124, 58, 237, 0.08);
         }
-        
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
         body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
             line-height: 1.5;
             min-height: 100vh;
         }
-        
-        .container {
-            max-width: 1200px;
+
+        .app-container {
+            max-width: 1100px;
             margin: 0 auto;
             padding: 2rem 1.5rem;
         }
-        
+
         .header {
-            margin-bottom: 2rem;
-            padding-bottom: 1.5rem;
-            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
         }
-        
+
         .header h1 {
-            font-size: 1.75rem;
+            font-size: 1.6rem;
             font-weight: 700;
-            margin-bottom: 0.5rem;
-            letter-spacing: -0.02em;
+            color: var(--text);
+            margin-bottom: 0.25rem;
         }
-        
+
         .header p {
             color: var(--text-secondary);
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
-        
-        .methodology-note {
-            background: var(--accent-blue-dim);
-            border: 1px solid rgba(29, 155, 240, 0.3);
+
+        .about-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 1rem 1.25rem;
             margin-bottom: 1.5rem;
-            font-size: 0.875rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
         }
-        
-        .methodology-note strong {
-            color: var(--accent-blue);
+
+        .about-box strong { color: var(--text); }
+
+        .about-box a {
+            color: var(--accent);
+            text-decoration: none;
         }
-        
-        .methodology-note code {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--bg-tertiary);
-            padding: 0.15rem 0.4rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
+
+        .about-box a:hover { text-decoration: underline; }
+
+        /* Search */
+        .search-section { position: relative; margin-bottom: 1.5rem; }
+
+        .search-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: stretch;
         }
-        
-        .upload-zone {
-            background: var(--bg-secondary);
-            border: 2px dashed var(--border-light);
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            transition: all 0.2s ease;
-            cursor: pointer;
+
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            background: var(--bg-input);
+            color: var(--text);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: border-color 0.15s;
         }
-        
-        .upload-zone:hover {
-            border-color: var(--accent-blue);
-            background: var(--bg-tertiary);
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
         }
-        
-        .upload-btn {
-            background: var(--accent-blue);
+
+        .search-input::placeholder { color: var(--text-muted); }
+
+        .search-btn {
+            padding: 0.75rem 1.75rem;
+            background: var(--accent);
             color: white;
             border: none;
-            padding: 0.875rem 1.75rem;
-            border-radius: 9999px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .upload-btn:hover {
-            background: #1a8cd8;
-        }
-        
-        .upload-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .upload-hint {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-top: 1rem;
-        }
-        
-        .error-box {
-            background: rgba(244, 33, 46, 0.1);
-            border: 1px solid rgba(244, 33, 46, 0.3);
             border-radius: 8px;
-            padding: 1rem;
-            margin-top: 1rem;
-            color: var(--accent-red);
+            font-weight: 600;
             font-size: 0.9rem;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s;
         }
-        
+
+        .search-btn:hover:not(:disabled) { background: #1d4ed8; }
+        .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+            z-index: 100;
+            max-height: 280px;
+            overflow-y: auto;
+            margin-top: 4px;
+        }
+
+        .autocomplete-item {
+            padding: 0.65rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.1s;
+        }
+
+        .autocomplete-item:hover { background: var(--bg-hover); }
+        .autocomplete-item:last-child { border-bottom: none; }
+
+        .candidate-name { font-weight: 600; font-size: 0.85rem; }
+        .candidate-meta { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+
+        /* Stats grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-        
-        .stat-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.25rem;
-        }
-        
-        .stat-label {
-            font-size: 0.75rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-        
-        .stat-value.green { color: var(--accent-green); }
-        .stat-value.blue { color: var(--accent-blue); }
-        .stat-value.orange { color: var(--accent-orange); }
-        
-        .stat-detail {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-        }
-        
-        .section {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
+            gap: 0.75rem;
             margin-bottom: 1.5rem;
-            overflow: hidden;
         }
-        
-        .section-header {
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
             padding: 1rem 1.25rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
-        
-        .section-title {
-            font-size: 1rem;
-            font-weight: 600;
-        }
-        
-        .badge {
+
+        .stat-label {
             font-size: 0.7rem;
-            padding: 0.25rem 0.6rem;
-            border-radius: 9999px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
         }
-        
-        .badge.green {
-            background: var(--accent-green-dim);
-            color: var(--accent-green);
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
         }
-        
-        .badge.orange {
-            background: var(--accent-orange-dim);
-            color: var(--accent-orange);
+
+        .stat-value.green { color: var(--green); }
+        .stat-value.accent { color: var(--accent); }
+        .stat-value.orange { color: var(--orange); }
+        .stat-value.purple { color: var(--purple); }
+
+        .stat-detail {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 2px;
         }
-        
-        .table-wrapper {
-            overflow-x: auto;
+
+        .latest-date {
+            background: var(--green-dim);
+            border: 1px solid rgba(22, 163, 74, 0.2);
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.85rem;
+            color: var(--green);
+            font-weight: 500;
         }
-        
+
+        /* Table */
+        .section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .section h2 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .section-desc {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-bottom: 1rem;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.875rem;
+            font-size: 0.82rem;
         }
-        
+
         th {
             text-align: left;
-            padding: 0.75rem 1rem;
-            font-size: 0.7rem;
+            padding: 0.5rem 0.6rem;
+            border-bottom: 2px solid var(--border);
             font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.72rem;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            background: var(--bg-tertiary);
-            position: sticky;
-            top: 0;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
         }
-        
-        th.right, td.right {
-            text-align: right;
-        }
-        
+
         td {
-            padding: 0.75rem 1rem;
-            border-top: 1px solid var(--border-color);
-            vertical-align: top;
+            padding: 0.5rem 0.6rem;
+            border-bottom: 1px solid var(--border-light);
         }
-        
-        tr:hover td {
-            background: var(--bg-tertiary);
-        }
-        
-        .pac-name {
-            font-weight: 500;
-        }
-        
-        .pac-id {
+
+        .num { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+
+        .badge {
+            display: inline-block;
+            padding: 0.1rem 0.45rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
             font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-blue { background: var(--accent-dim); color: var(--accent); }
+        .badge-orange { background: var(--orange-dim); color: var(--orange); }
+        .badge-green { background: var(--green-dim); color: var(--green); }
+        .badge-purple { background: var(--purple-dim); color: var(--purple); }
+
+        /* Collapsible sections */
+        .collapsible-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding: 0.5rem 0;
+        }
+
+        .collapsible-toggle:hover { color: var(--text); }
+
+        .pac-list {
             font-size: 0.75rem;
             color: var(--text-muted);
-            margin-top: 0.25rem;
-        }
-        
-        .amount {
             font-family: 'JetBrains Mono', monospace;
-            font-weight: 500;
+            padding: 0.75rem 0;
+            columns: 2;
+            column-gap: 2rem;
         }
-        
-        .amount.positive { color: var(--accent-green); }
-        
-        .type-badge {
-            display: inline-block;
-            font-size: 0.65rem;
-            padding: 0.15rem 0.5rem;
-            border-radius: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
+
+        .pac-list div { padding: 0.15rem 0; break-inside: avoid; }
+
+        @media (max-width: 640px) {
+            .pac-list { columns: 1; }
         }
-        
-        .type-badge.bundled {
-            background: var(--accent-blue-dim);
-            color: var(--accent-blue);
+
+        /* Status log */
+        .log-container {
+            background: #f6f6f6;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--text-muted);
         }
-        
-        .type-badge.direct {
-            background: var(--accent-orange-dim);
-            color: var(--accent-orange);
-        }
-        
-        .footer-note {
-            background: var(--bg-tertiary);
+
+        .log-container .warn { color: var(--orange); }
+        .log-container .error { color: var(--red); }
+        .log-container .success { color: var(--green); }
+
+        /* Other */
+        .error-msg {
+            background: var(--red-dim);
+            border: 1px solid rgba(220,38,38,0.2);
+            color: var(--red);
+            padding: 0.75rem 1rem;
             border-radius: 8px;
-            padding: 1rem 1.25rem;
+            margin-bottom: 1rem;
             font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-top: 1.5rem;
         }
-        
-        .footer-note a {
-            color: var(--accent-blue);
-            text-decoration: none;
-        }
-        
-        .footer-note a:hover {
-            text-decoration: underline;
-        }
-        
-        .help-section {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-top: 1.5rem;
-        }
-        
-        .help-section h3 {
-            font-size: 1rem;
-            font-weight: 600;
+
+        .warning-bar {
+            background: var(--orange-dim);
+            border: 1px solid rgba(217,119,6,0.2);
+            color: #92400e;
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
             margin-bottom: 1rem;
         }
-        
-        .help-section ol {
-            padding-left: 1.25rem;
-            color: var(--text-secondary);
+
+        .warning-bar a { color: inherit; text-decoration: underline; }
+
+        .filter-stats {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-family: 'JetBrains Mono', monospace;
         }
-        
-        .help-section li {
-            margin-bottom: 0.5rem;
+
+        .footer-contact {
+            border-top: 1px solid var(--border);
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.7;
         }
-        
-        .help-section a {
-            color: var(--accent-blue);
+
+        .footer-contact a {
+            color: var(--accent);
             text-decoration: none;
         }
-        
-        .help-section a:hover {
-            text-decoration: underline;
+
+        .footer-contact a:hover { text-decoration: underline; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
         }
-        
-        .filter-info {
-            background: var(--bg-tertiary);
-            border-radius: 6px;
-            padding: 0.75rem 1rem;
-            margin-top: 1rem;
-            font-size: 0.8rem;
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        details summary { cursor: pointer; }
+        details summary:hover { color: var(--text); }
+
+        .detail-row {
+            padding: 0.2rem 0;
+            border-bottom: 1px solid var(--border-light);
         }
-        
-        .filter-info code {
-            font-family: 'JetBrains Mono', monospace;
-            background: var(--bg-primary);
-            padding: 0.1rem 0.3rem;
-            border-radius: 3px;
-        }
-        
-        .totals-row td {
-            background: var(--bg-tertiary) !important;
-            font-weight: 700;
-            border-top: 2px solid var(--border-light);
-        }
-        
-        .contributor-name {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .header h1 {
-                font-size: 1.4rem;
-            }
-            
-            .upload-zone {
-                padding: 2rem 1rem;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-            
-            .stat-value {
-                font-size: 1.4rem;
-            }
-        }
+
+        .detail-row:last-child { border-bottom: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
-    
     <script type="text/babel">
-        const { useState, useRef } = React;
-        
-        // Israel-related PAC data from TrackAIPAC.com (52 PACs)
+        const { useState, useRef, useCallback, useEffect } = React;
+
+        // ═══════════════════════════════════════════════════════
+        // 53 TRACKED PRO-ISRAEL PACS
+        // Source: TrackAIPAC.com
+        // ═══════════════════════════════════════════════════════
         const ISRAEL_PACS = {
             'C00797670': 'American Israel Public Affairs Committee PAC',
             'C00492579': 'American Principles',
@@ -411,10 +413,10 @@
             'C00110585': 'Citizens Organized Political Action Committee',
             'C00187526': 'City PAC',
             'C00152579': 'Delaware Valley PAC',
-            'C00429571': 'California Jewish Democrats-FED',
+            'C00429571': 'Democrats for Israel Committee',
             'C00710848': 'DMFI PAC (Democratic Majority for Israel)',
             'C00265470': 'Friends of Israel',
-            'C00141747': 'San Franciscans for Good Government',
+            'C00141747': 'Friends of Israel PAC / San Franciscans for Good Government',
             'C00169136': 'Garden State PAC',
             'C00473249': 'Grand Canyon State Caucus',
             'C00131557': 'Heartland PAC',
@@ -438,14 +440,14 @@
             'C00740936': 'Pro-Israel America Action Fund',
             'C00699470': 'Pro-Israel America PAC',
             'C90012063': 'Republican Jewish Coalition',
-            'C00345132': 'Republican Jewish Coalition-PAC',
+            'C00345132': 'Republican Jewish Coalition PAC (RJC-PAC)',
             'C00148155': 'St. Louisans for Better Government',
             'C00378216': 'SunPAC',
             'C00102368': 'The Desert Caucus',
             'C00135541': 'To Protect Our Heritage PAC',
             'C00799031': 'United Democracy Project (UDP)',
             'C00152280': 'United PAC (Illinois)',
-            'C00127811': 'US Israel PAC',
+            'C00127811': 'US Israel PAC / Florida Congressional Committee',
             'C00138560': 'Washington PAC',
             'C00203182': "Women's Pro-Israel National PAC",
             'C00236596': 'World Alliance for Israel PAC',
@@ -454,442 +456,618 @@
             'C00548628': 'Zionist Organization of America',
             'C00309781': 'Phoenix Education Partners'
         };
-        
+
+        const PAC_COUNT = Object.keys(ISRAEL_PACS).length;
+        const API_KEY = 'mkiAiUz0a0Ion975USiQNN6l1Q2uzMWQeZJbfQvk';
+
         function FECAnalyzer() {
+            const [searchText, setSearchText] = useState('');
+            const [candidates, setCandidates] = useState([]);
+            const [selectedCandidate, setSelectedCandidate] = useState(null);
+            const [showAutocomplete, setShowAutocomplete] = useState(false);
             const [results, setResults] = useState(null);
-            const [error, setError] = useState(null);
             const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [statusLog, setStatusLog] = useState([]);
             const [filterStats, setFilterStats] = useState(null);
-            const fileInputRef = useRef(null);
-            
-            const handleFileUpload = (event) => {
-                const file = event.target.files[0];
-                if (!file) return;
-                
+            const [showPacList, setShowPacList] = useState(false);
+            const [showLog, setShowLog] = useState(false);
+            const [rateLimited, setRateLimited] = useState(false);
+            const [latestDate, setLatestDate] = useState(null);
+
+            const searchTimeout = useRef(null);
+            const apiCallCount = useRef(0);
+
+            const addStatus = useCallback((msg, type = 'info') => {
+                const ts = new Date().toLocaleTimeString();
+                setStatusLog(prev => [...prev, { msg, type, ts }]);
+            }, []);
+
+            // ── Candidate Search ──
+            const searchCandidates = async (query) => {
+                if (query.length < 2) { setCandidates([]); return; }
+                try {
+                    const resp = await fetch(`https://api.open.fec.gov/v1/candidates/search/?q=${encodeURIComponent(query)}&per_page=8&api_key=${API_KEY}`);
+                    const data = await resp.json();
+                    setCandidates(data.results || []);
+                    setShowAutocomplete(true);
+                } catch (e) {
+                    setCandidates([]);
+                }
+            };
+
+            const handleSearchInput = (val) => {
+                setSearchText(val);
+                setSelectedCandidate(null);
+                if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                searchTimeout.current = setTimeout(() => searchCandidates(val), 300);
+            };
+
+            const selectCandidate = (c) => {
+                setSelectedCandidate(c);
+                setSearchText(c.name);
+                setShowAutocomplete(false);
+                setCandidates([]);
+            };
+
+            // ── Committee Lookup ──
+            const getCommitteeIds = async (candidateId) => {
+                addStatus(`Looking up committees for ${candidateId}...`);
+                const resp = await fetch(`https://api.open.fec.gov/v1/candidate/${candidateId}/committees/?api_key=${API_KEY}&per_page=100`);
+                apiCallCount.current++;
+                const data = await resp.json();
+                const ids = (data.results || []).map(c => c.committee_id);
+                addStatus(`Found ${ids.length} committee(s): ${ids.join(', ')}`);
+                return ids;
+            };
+
+            // ── Fetch All Contributions (paginated) ──
+            const fetchAllContributions = async (committeeId) => {
+                const allResults = [];
+                let retries = 0;
+                let lastIndex = null;
+                let lastDate = null;
+                let hasMore = true;
+                let page = 1;
+                const perPage = 100;
+
+                while (hasMore) {
+                    let url = `https://api.open.fec.gov/v1/schedules/schedule_a/?committee_id=${committeeId}&per_page=${perPage}&api_key=${API_KEY}`;
+
+                    if (lastIndex && lastDate) {
+                        url += `&last_index=${lastIndex}&last_contribution_receipt_date=${encodeURIComponent(lastDate)}`;
+                    }
+
+                    if (page <= 3) {
+                        addStatus(`Page ${page}: fetching from ${committeeId}...`);
+                    }
+
+                    try {
+                        const resp = await fetch(url);
+                        apiCallCount.current++;
+
+                        if (resp.status === 429) {
+                            retries++;
+                            if (retries <= 3) {
+                                const waitSec = retries * 5;
+                                addStatus(`Rate limited — waiting ${waitSec}s then retrying (attempt ${retries}/3)...`, 'warn');
+                                await new Promise(r => setTimeout(r, waitSec * 1000));
+                                continue;
+                            }
+                            addStatus('Rate limited after 3 retries — returning partial results', 'warn');
+                            setRateLimited(true);
+                            hasMore = false;
+                            break;
+                        }
+                        retries = 0;
+
+                        if (!resp.ok) {
+                            let errBody = '';
+                            try { errBody = await resp.text(); } catch(e) {}
+                            addStatus(`API error ${resp.status}: ${errBody.substring(0, 200)}`, 'error');
+                            hasMore = false;
+                            break;
+                        }
+
+                        const data = await resp.json();
+                        const rows = data.results || [];
+                        allResults.push(...rows);
+
+                        if (page <= 3) {
+                            addStatus(`Page ${page}: ${rows.length} rows received`);
+                        }
+
+                        if (allResults.length % 1000 < perPage && allResults.length >= 1000) {
+                            addStatus(`...${allResults.length.toLocaleString()} rows fetched so far (page ${page})`);
+                        }
+
+                        // Pagination
+                        const lastIndexes = data.pagination?.last_indexes;
+                        if (!lastIndexes || !lastIndexes.last_index || rows.length < perPage) {
+                            hasMore = false;
+                        } else {
+                            lastIndex = lastIndexes.last_index;
+                            lastDate = lastIndexes.last_contribution_receipt_date;
+                        }
+
+                        // Delay between requests to avoid burst rate limits
+                        if (hasMore) {
+                            await new Promise(r => setTimeout(r, 250));
+                        }
+
+                        page++;
+                    } catch (e) {
+                        addStatus(`Fetch error: ${e.message}`, 'error');
+                        hasMore = false;
+                    }
+                }
+
+                return allResults;
+            };
+
+            // ── Main Analysis ──
+            const runAnalysis = async () => {
+                if (!selectedCandidate) return;
+
                 setLoading(true);
                 setError(null);
                 setResults(null);
                 setFilterStats(null);
-                
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: (results) => {
-                        try {
-                            analyzeData(results.data);
-                        } catch (err) {
-                            setError(`Error analyzing file: ${err.message}`);
-                            setLoading(false);
-                        }
-                    },
-                    error: (error) => {
-                        setError(`Error parsing CSV: ${error.message}`);
-                        setLoading(false);
+                setStatusLog([]);
+                setRateLimited(false);
+                setLatestDate(null);
+                apiCallCount.current = 0;
+
+                try {
+                    const committeeIds = await getCommitteeIds(selectedCandidate.candidate_id);
+                    if (committeeIds.length === 0) {
+                        throw new Error('No committees found for this candidate');
                     }
-                });
+
+                    let allRaw = [];
+                    for (const cid of committeeIds) {
+                        addStatus(`Fetching contributions for ${cid}...`);
+                        const rows = await fetchAllContributions(cid);
+                        addStatus(`${cid}: ${rows.length.toLocaleString()} rows fetched`, 'success');
+                        allRaw.push(...rows);
+                    }
+
+                    addStatus(`Total rows fetched: ${allRaw.length.toLocaleString()}`);
+
+                    // Filter: memo_code != 'X' (prevents double-counting)
+                    const beforeMemo = allRaw.length;
+                    const afterMemo = allRaw.filter(row => {
+                        const mc = (row.memo_code || '').toString().trim().toUpperCase();
+                        return mc !== 'X';
+                    });
+                    const memoExcluded = beforeMemo - afterMemo.length;
+                    addStatus(`De-duplication: excluded ${memoExcluded.toLocaleString()} memo entries`, 'success');
+
+                    // Match against tracked PAC list
+                    const matched = afterMemo.filter(row => {
+                        const cid = (row.contributor_id || '').toString().trim().toUpperCase();
+                        return cid && ISRAEL_PACS[cid];
+                    });
+
+                    addStatus(`Matched: ${matched.length} contributions from tracked pro-Israel PACs`, 'success');
+                    addStatus(`API calls used: ${apiCallCount.current}`, 'info');
+
+                    const memoExcludedAmount = allRaw
+                        .filter(row => (row.memo_code || '').toString().trim().toUpperCase() === 'X')
+                        .reduce((s, r) => s + (parseFloat(r.contribution_receipt_amount) || 0), 0);
+
+                    setFilterStats({
+                        totalFetched: beforeMemo,
+                        memoExcluded,
+                        memoExcludedAmount,
+                        afterMemo: afterMemo.length,
+                        matched: matched.length,
+                        apiCalls: apiCallCount.current
+                    });
+
+                    if (matched.length === 0) {
+                        setError('No pro-Israel PAC contributions found for this candidate.');
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Find latest transaction date
+                    let maxDate = null;
+                    matched.forEach(row => {
+                        const d = row.contribution_receipt_date;
+                        if (d && (!maxDate || d > maxDate)) maxDate = d;
+                    });
+                    setLatestDate(maxDate);
+
+                    analyzeContributions(matched);
+
+                } catch (err) {
+                    addStatus(`Error: ${err.message}`, 'error');
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
             };
-            
-            const analyzeData = (data) => {
-                const matches = [];
+
+            // ── Group by PAC and Election Cycle ──
+            const analyzeContributions = (contributions) => {
+                const allYears = new Set();
                 let totalAmount = 0;
                 let bundledTotal = 0;
                 let directTotal = 0;
                 let bundledCount = 0;
                 let directCount = 0;
-                
-                // Track filtering stats
-                let totalRows = data.length;
-                let memoExcluded = 0;
-                let afterMemoFilter = 0;
-                
-                data.forEach((row) => {
-                    // CRITICAL FIX #1: Apply memo_code filter to avoid double-counting
-                    // memo_code = 'X' indicates documentation/memo entries, not actual contributions
-                    const memoCode = (row.memo_code || '').trim().toUpperCase();
-                    if (memoCode === 'X') {
-                        memoExcluded++;
-                        return; // Skip memo entries
-                    }
-                    
-                    afterMemoFilter++;
-                    
-                    // Get contributor_id - try multiple field names for compatibility
-                    // FEC bulk data uses 'contributor_id', some exports use 'unused_contbr_id'
-                    const contributorId = (
-                        row.contributor_id || 
-                        row.unused_contbr_id || 
-                        row.contbr_id ||
-                        ''
-                    ).trim();
-                    
+                const byPac = {};
+
+                contributions.forEach(row => {
+                    const amount = parseFloat(row.contribution_receipt_amount) || 0;
+                    const pacId = (row.contributor_id || '').trim().toUpperCase();
+                    const pacName = ISRAEL_PACS[pacId] || pacId;
                     const entityType = (row.entity_type || '').trim().toUpperCase();
-                    const receiptType = (row.receipt_type || row.receipt_description || '').trim();
-                    
-                    // CRITICAL FIX #2: Match against pro-Israel PAC list
-                    // This catches BOTH bundled individual contributions AND direct PAC contributions
-                    if (contributorId && ISRAEL_PACS[contributorId]) {
-                        const amount = parseFloat(row.contribution_receipt_amount) || 0;
-                        
-                        // Determine contribution type
-                        // - Bundled: entity_type = 'IND' (individual giving through PAC conduit)
-                        // - Direct: entity_type = 'PAC' (PAC treasury funds)
-                        let contributionType;
-                        if (entityType === 'IND') {
-                            contributionType = 'bundled';
-                            bundledTotal += amount;
-                            bundledCount++;
-                        } else if (entityType === 'PAC') {
-                            contributionType = 'direct';
-                            directTotal += amount;
-                            directCount++;
-                        } else {
-                            // Other entity types (rare) - categorize as "other"
-                            contributionType = 'other';
-                        }
-                        
-                        totalAmount += amount;
-                        
-                        matches.push({
-                            pacId: contributorId,
-                            pacName: ISRAEL_PACS[contributorId],
-                            contributorName: row.contributor_name || 'Unknown',
-                            amount: amount,
-                            date: row.contribution_receipt_date || 'Unknown',
-                            candidateName: row.candidate_name || 'N/A',
-                            entityType: entityType,
-                            receiptType: receiptType,
-                            contributionType: contributionType
-                        });
-                    }
-                });
-                
-                // Sort by date (most recent first)
-                matches.sort((a, b) => {
-                    if (a.date === 'Unknown') return 1;
-                    if (b.date === 'Unknown') return -1;
-                    return new Date(b.date) - new Date(a.date);
-                });
-                
-                // Collect all years
-                const allYears = new Set();
-                matches.forEach(match => {
-                    if (match.date && match.date !== 'Unknown') {
-                        try {
-                            const year = new Date(match.date).getFullYear();
-                            if (!isNaN(year)) allYears.add(year);
-                        } catch (e) {}
-                    }
-                });
-                const sortedYears = Array.from(allYears).sort();
-                
-                // Group by PAC
-                const groupedByPac = {};
-                matches.forEach(match => {
-                    if (!groupedByPac[match.pacId]) {
-                        groupedByPac[match.pacId] = {
-                            pacName: match.pacName,
-                            contributions: [],
-                            total: 0,
-                            bundledTotal: 0,
-                            directTotal: 0,
-                            byYear: {}
+
+                    // Year: use two_year_transaction_period (election cycle)
+                    let year = row.two_year_transaction_period
+                        || row.fec_election_year
+                        || null;
+                    year = year ? String(year) : 'Unknown';
+                    allYears.add(year);
+
+                    const isBundled = entityType === 'IND';
+                    const isDirect = entityType === 'PAC';
+
+                    totalAmount += amount;
+                    if (isBundled) { bundledTotal += amount; bundledCount++; }
+                    if (isDirect) { directTotal += amount; directCount++; }
+
+                    if (!byPac[pacId]) {
+                        byPac[pacId] = {
+                            pacId, pacName,
+                            total: 0, bundled: 0, direct: 0,
+                            bundledCount: 0, directCount: 0,
+                            byYear: {}, rows: []
                         };
-                        sortedYears.forEach(year => {
-                            groupedByPac[match.pacId].byYear[year] = 0;
-                        });
                     }
-                    
-                    groupedByPac[match.pacId].contributions.push(match);
-                    groupedByPac[match.pacId].total += match.amount;
-                    
-                    if (match.contributionType === 'bundled') {
-                        groupedByPac[match.pacId].bundledTotal += match.amount;
-                    } else if (match.contributionType === 'direct') {
-                        groupedByPac[match.pacId].directTotal += match.amount;
+                    byPac[pacId].total += amount;
+                    if (isBundled) { byPac[pacId].bundled += amount; byPac[pacId].bundledCount++; }
+                    if (isDirect) { byPac[pacId].direct += amount; byPac[pacId].directCount++; }
+
+                    if (!byPac[pacId].byYear[year]) {
+                        byPac[pacId].byYear[year] = { bundled: 0, direct: 0, total: 0 };
                     }
-                    
-                    if (match.date && match.date !== 'Unknown') {
-                        try {
-                            const year = new Date(match.date).getFullYear();
-                            if (!isNaN(year)) {
-                                groupedByPac[match.pacId].byYear[year] += match.amount;
-                            }
-                        } catch (e) {}
-                    }
-                });
-                
-                setFilterStats({
-                    totalRows,
-                    memoExcluded,
-                    afterMemoFilter,
-                    matchedRows: matches.length
-                });
-                
-                setResults({
-                    totalMatches: matches.length,
-                    totalAmount,
-                    bundledTotal,
-                    directTotal,
-                    bundledCount,
-                    directCount,
-                    matches,
-                    groupedByPac,
-                    years: sortedYears
-                });
-                
-                setLoading(false);
-            };
-            
-            const formatCurrency = (amount) => {
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                }).format(amount);
-            };
-            
-            const formatDate = (dateStr) => {
-                if (dateStr === 'Unknown' || !dateStr) return 'Unknown';
-                try {
-                    const date = new Date(dateStr);
-                    return date.toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
+                    byPac[pacId].byYear[year].total += amount;
+                    if (isBundled) byPac[pacId].byYear[year].bundled += amount;
+                    if (isDirect) byPac[pacId].byYear[year].direct += amount;
+
+                    byPac[pacId].rows.push({
+                        date: row.contribution_receipt_date || 'Unknown',
+                        amount, entityType, year,
+                        contributorName: row.contributor_name || '',
+                        receiptType: row.receipt_type || ''
                     });
-                } catch {
-                    return dateStr;
-                }
+                });
+
+                const sortedYears = Array.from(allYears).sort();
+                const sortedPacs = Object.values(byPac).sort((a, b) => b.total - a.total);
+
+                // Election cycle labels (e.g. 2024 → "2023–2024")
+                const cycleLabel = (y) => {
+                    const n = parseInt(y);
+                    if (isNaN(n)) return y;
+                    return `${n - 1}–${n}`;
+                };
+
+                setResults({
+                    totalAmount, bundledTotal, directTotal,
+                    bundledCount, directCount,
+                    totalCount: contributions.length,
+                    years: sortedYears, pacs: sortedPacs,
+                    cycleLabel
+                });
             };
-            
+
+            const fmt = (n) => new Intl.NumberFormat('en-US', {
+                style: 'currency', currency: 'USD',
+                minimumFractionDigits: 0, maximumFractionDigits: 0
+            }).format(n);
+
+            const fmtDate = (d) => {
+                if (!d || d === 'Unknown') return '—';
+                try { return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }); }
+                catch { return d; }
+            };
+
+            // ═══════════════════════════════════
+            // RENDER
+            // ═══════════════════════════════════
             return (
-                <div className="container">
+                <div className="app-container">
                     <div className="header">
-                        <h1>FEC Israel PAC Analyzer</h1>
-                        <p>Analyze campaign contributions from pro-Israel PACs using corrected FEC methodology</p>
+                        <h1>Pro-Israel PAC Contribution Analyzer</h1>
+                        <p>Search any federal candidate to see how much they've received from {PAC_COUNT} tracked pro-Israel PACs.</p>
                     </div>
-                    
-                
-                    
-                    <div 
-                        className="upload-zone"
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".csv"
-                            onChange={handleFileUpload}
-                            style={{ display: 'none' }}
-                        />
-                        <button 
-                            className="upload-btn"
-                            disabled={loading}
-                        >
-                            {loading ? 'Analyzing...' : 'Upload FEC CSV File'}
-                        </button>
-                        <p className="upload-hint">
-                            Supports FEC.gov bulk data exports (Schedule A contributions)
-                        </p>
+
+                    <div className="about-box">
+                        <strong>How it works:</strong> This tool pulls contribution records directly from the
+                        FEC (Federal Election Commission) for any candidate you search. It identifies donations
+                        from {PAC_COUNT} pro-Israel political action committees tracked
+                        by <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>,
+                        including both direct PAC contributions and individual donations bundled through these PACs.
+                        Results are grouped by election cycle. Data source is FEC Schedule A filings.
                     </div>
-                    
-                    {error && (
-                        <div className="error-box">
-                            <strong>Error:</strong> {error}
+
+                    {/* Search */}
+                    <div className="search-section">
+                        <div className="search-row">
+                            <input
+                                className="search-input"
+                                placeholder="Type a candidate name (e.g. Pat Ryan, Josh Riley)..."
+                                value={searchText}
+                                onChange={e => handleSearchInput(e.target.value)}
+                                onFocus={() => candidates.length > 0 && setShowAutocomplete(true)}
+                                onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                            />
+                            <button
+                                className="search-btn"
+                                onClick={runAnalysis}
+                                disabled={!selectedCandidate || loading}
+                            >
+                                {loading ? <><span className="loading-spinner"></span>Analyzing...</> : 'Analyze'}
+                            </button>
+                        </div>
+
+                        {showAutocomplete && candidates.length > 0 && (
+                            <div className="autocomplete-list">
+                                {candidates.map(c => (
+                                    <div key={c.candidate_id} className="autocomplete-item"
+                                        onMouseDown={() => selectCandidate(c)}>
+                                        <div className="candidate-name">{c.name}</div>
+                                        <div className="candidate-meta">
+                                            {c.office_full || c.office} · {c.state}-{c.district || 'At Large'} · {c.party_full || c.party}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* PAC list toggle */}
+                    <div style={{marginBottom: '1rem'}}>
+                        <div className="collapsible-toggle" onClick={() => setShowPacList(!showPacList)}>
+                            <span>{showPacList ? '▾' : '▸'}</span>
+                            <span>View tracked PACs ({PAC_COUNT})</span>
+                        </div>
+                        {showPacList && (
+                            <div className="pac-list">
+                                {Object.entries(ISRAEL_PACS).map(([id, name]) => (
+                                    <div key={id}>{name}</div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {error && <div className="error-msg">{error}</div>}
+
+                    {rateLimited && (
+                        <div className="warning-bar">
+                            ⚠ Results may be incomplete due to API rate limits. Some contribution data may be missing.
                         </div>
                     )}
-                    
-                    {filterStats && (
-                        <div className="filter-info">
-                            <strong>Filtering:</strong> {filterStats.totalRows.toLocaleString()} total rows → 
-                            {filterStats.memoExcluded.toLocaleString()} memo entries excluded → 
-                            {filterStats.afterMemoFilter.toLocaleString()} after filter → 
-                            {filterStats.matchedRows.toLocaleString()} matched pro-Israel PACs
-                        </div>
-                    )}
-                    
+
+                    {/* Results */}
                     {results && (
                         <>
+                            {/* Latest transaction date */}
+                            {latestDate && (
+                                <div className="latest-date">
+                                    Latest reported transaction: {fmtDate(latestDate)}
+                                </div>
+                            )}
+
+                            {/* Summary cards */}
                             <div className="stats-grid">
                                 <div className="stat-card">
-                                    <div className="stat-label">Total Amount</div>
-                                    <div className="stat-value green">{formatCurrency(results.totalAmount)}</div>
-                                    <div className="stat-detail">{results.totalMatches} contributions</div>
+                                    <div className="stat-label">Total Raised from Pro-Israel PACs</div>
+                                    <div className="stat-value green">{fmt(results.totalAmount)}</div>
+                                    <div className="stat-detail">{results.totalCount} contributions</div>
                                 </div>
                                 <div className="stat-card">
-                                    <div className="stat-label">Bundled Individual</div>
-                                    <div className="stat-value blue">{formatCurrency(results.bundledTotal)}</div>
-                                    <div className="stat-detail">{results.bundledCount} contributions (15E earmarked)</div>
+                                    <div className="stat-label">Bundled Individual Contributions</div>
+                                    <div className="stat-value accent">{fmt(results.bundledTotal)}</div>
+                                    <div className="stat-detail">{results.bundledCount} contributions routed through PACs</div>
                                 </div>
                                 <div className="stat-card">
-                                    <div className="stat-label">Direct PAC</div>
-                                    <div className="stat-value orange">{formatCurrency(results.directTotal)}</div>
-                                    <div className="stat-detail">{results.directCount} contributions (15K treasury)</div>
+                                    <div className="stat-label">Direct PAC Contributions</div>
+                                    <div className="stat-value orange">{fmt(results.directTotal)}</div>
+                                    <div className="stat-detail">{results.directCount} contributions from PAC treasury funds</div>
                                 </div>
                                 <div className="stat-card">
-                                    <div className="stat-label">PACs Matched</div>
-                                    <div className="stat-value">{Object.keys(results.groupedByPac).length}</div>
-                                    <div className="stat-detail">of {Object.keys(ISRAEL_PACS).length} tracked</div>
+                                    <div className="stat-label">PACs Contributing</div>
+                                    <div className="stat-value purple">{results.pacs.length}</div>
+                                    <div className="stat-detail">of {PAC_COUNT} tracked</div>
                                 </div>
                             </div>
-                            
+
+                            {/* Breakdown table */}
                             <div className="section">
-                                <div className="section-header">
-                                    <span className="section-title">Summary by PAC</span>
+                                <h2>Breakdown by PAC and Election Cycle</h2>
+                                <div className="section-desc">
+                                    <span className="badge badge-blue" style={{marginRight: '0.5rem'}}>Bundled Individual</span>
+                                    <span className="badge badge-orange">Direct PAC</span>
                                 </div>
-                                <div className="table-wrapper">
+                                <div style={{overflowX: 'auto'}}>
                                     <table>
                                         <thead>
                                             <tr>
-                                                <th>PAC Name</th>
-                                                <th className="right">Bundled</th>
-                                                <th className="right">Direct</th>
-                                                {results.years.map(year => (
-                                                    <th key={year} className="right">{year}</th>
-                                                ))}
-                                                <th className="right">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {Object.entries(results.groupedByPac)
-                                                .sort((a, b) => b[1].total - a[1].total)
-                                                .map(([pacId, data]) => (
-                                                    <tr key={pacId}>
-                                                        <td>
-                                                            <div className="pac-name">{data.pacName}</div>
-                                                            <div className="pac-id">{pacId}</div>
-                                                        </td>
-                                                        <td className="right">
-                                                            {data.bundledTotal > 0 && (
-                                                                <span className="amount" style={{color: 'var(--accent-blue)'}}>
-                                                                    {formatCurrency(data.bundledTotal)}
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="right">
-                                                            {data.directTotal > 0 && (
-                                                                <span className="amount" style={{color: 'var(--accent-orange)'}}>
-                                                                    {formatCurrency(data.directTotal)}
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        {results.years.map(year => (
-                                                            <td key={year} className="right">
-                                                                {data.byYear[year] > 0 ? (
-                                                                    <span className="amount">{formatCurrency(data.byYear[year])}</span>
-                                                                ) : '-'}
-                                                            </td>
-                                                        ))}
-                                                        <td className="right">
-                                                            <span className="amount positive">{formatCurrency(data.total)}</span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                        </tbody>
-                                        <tfoot>
-                                            <tr className="totals-row">
-                                                <td><strong>TOTAL</strong></td>
-                                                <td className="right">
-                                                    <span className="amount" style={{color: 'var(--accent-blue)'}}>
-                                                        {formatCurrency(results.bundledTotal)}
-                                                    </span>
-                                                </td>
-                                                <td className="right">
-                                                    <span className="amount" style={{color: 'var(--accent-orange)'}}>
-                                                        {formatCurrency(results.directTotal)}
-                                                    </span>
-                                                </td>
-                                                {results.years.map(year => {
-                                                    const yearTotal = Object.values(results.groupedByPac)
-                                                        .reduce((sum, pac) => sum + (pac.byYear[year] || 0), 0);
-                                                    return (
-                                                        <td key={year} className="right">
-                                                            <span className="amount">{formatCurrency(yearTotal)}</span>
-                                                        </td>
-                                                    );
-                                                })}
-                                                <td className="right">
-                                                    <span className="amount positive">{formatCurrency(results.totalAmount)}</span>
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </div>
-                            </div>
-                            
-                            <div className="section">
-                                <div className="section-header">
-                                    <span className="section-title">All Transactions</span>
-                                    <span className="badge green">{results.matches.length} total</span>
-                                </div>
-                                <div className="table-wrapper" style={{maxHeight: '500px', overflow: 'auto'}}>
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Type</th>
                                                 <th>PAC</th>
-                                                <th>Contributor</th>
-                                                <th className="right">Amount</th>
+                                                <th>Type</th>
+                                                {results.years.map(y => <th key={y} className="num">{results.cycleLabel(y)}</th>)}
+                                                <th className="num">Total</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {results.matches.map((match, idx) => (
-                                                <tr key={idx}>
-                                                    <td style={{whiteSpace: 'nowrap'}}>{formatDate(match.date)}</td>
-                                                    <td>
-                                                        <span className={`type-badge ${match.contributionType}`}>
-                                                            {match.contributionType === 'bundled' ? 'Bundled' : 
-                                                             match.contributionType === 'direct' ? 'Direct' : 'Other'}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className="pac-name">{match.pacName}</div>
-                                                        <div className="pac-id">{match.pacId}</div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="contributor-name">{match.contributorName}</div>
-                                                    </td>
-                                                    <td className="right">
-                                                        <span className="amount positive">{formatCurrency(match.amount)}</span>
-                                                    </td>
-                                                </tr>
+                                            {results.pacs.map(pac => (
+                                                <React.Fragment key={pac.pacId}>
+                                                    {pac.bundledCount > 0 && (
+                                                        <tr>
+                                                            <td style={{maxWidth: '250px'}}>
+                                                                <div style={{fontWeight: 600, fontSize: '0.82rem'}}>{pac.pacName}</div>
+                                                                <div style={{color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace"}}>{pac.pacId}</div>
+                                                            </td>
+                                                            <td><span className="badge badge-blue">IND</span></td>
+                                                            {results.years.map(y => (
+                                                                <td key={y} className="num">
+                                                                    {pac.byYear[y]?.bundled ? fmt(pac.byYear[y].bundled) : '—'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="num" style={{fontWeight: 700, color: 'var(--accent)'}}>
+                                                                {fmt(pac.bundled)}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    {pac.directCount > 0 && (
+                                                        <tr>
+                                                            <td style={{maxWidth: '250px'}}>
+                                                                {pac.bundledCount === 0 && (
+                                                                    <>
+                                                                        <div style={{fontWeight: 600, fontSize: '0.82rem'}}>{pac.pacName}</div>
+                                                                        <div style={{color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace"}}>{pac.pacId}</div>
+                                                                    </>
+                                                                )}
+                                                            </td>
+                                                            <td><span className="badge badge-orange">PAC</span></td>
+                                                            {results.years.map(y => (
+                                                                <td key={y} className="num">
+                                                                    {pac.byYear[y]?.direct ? fmt(pac.byYear[y].direct) : '—'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="num" style={{fontWeight: 700, color: 'var(--orange)'}}>
+                                                                {fmt(pac.direct)}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    {pac.bundledCount > 0 && pac.directCount > 0 && (
+                                                        <tr style={{borderBottom: '2px solid var(--border)'}}>
+                                                            <td style={{fontStyle: 'italic', color: 'var(--text-muted)', fontSize: '0.8rem'}}>Subtotal</td>
+                                                            <td></td>
+                                                            {results.years.map(y => (
+                                                                <td key={y} className="num" style={{fontWeight: 600}}>
+                                                                    {pac.byYear[y]?.total ? fmt(pac.byYear[y].total) : '—'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="num" style={{fontWeight: 700, color: 'var(--green)'}}>
+                                                                {fmt(pac.total)}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
                                             ))}
+                                            {/* Grand total */}
+                                            <tr style={{borderTop: '3px solid var(--border)'}}>
+                                                <td style={{fontWeight: 700, fontSize: '0.9rem'}}>Grand Total</td>
+                                                <td></td>
+                                                {results.years.map(y => {
+                                                    const yearTotal = results.pacs.reduce((s, p) => s + (p.byYear[y]?.total || 0), 0);
+                                                    return <td key={y} className="num" style={{fontWeight: 700}}>{yearTotal ? fmt(yearTotal) : '—'}</td>;
+                                                })}
+                                                <td className="num" style={{fontWeight: 700, fontSize: '1rem', color: 'var(--green)'}}>
+                                                    {fmt(results.totalAmount)}
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
-                            
-                            <div className="footer-note">
-                                <strong>Data Sources:</strong> Pro-Israel PAC list from{' '}
-                                <a href="https://trackaipac.com" target="_blank" rel="noopener noreferrer">Track AIPAC</a>.
-                                Methodology based on FEC bulk data analysis. Note: This captures contributions only, 
-                                not Independent Expenditures (IEs) which are reported separately on Schedule E.
+
+                            {/* Transaction Details */}
+                            <div className="section">
+                                <h2>Transaction Details</h2>
+                                <div className="section-desc">Individual contributions sorted by date (most recent first)</div>
+                                {results.pacs.map(pac => (
+                                    <details key={pac.pacId} style={{marginBottom: '0.75rem'}}>
+                                        <summary style={{padding: '0.5rem 0', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
+                                            {pac.pacName} — {fmt(pac.total)} ({pac.bundledCount + pac.directCount} contributions)
+                                        </summary>
+                                        <div style={{paddingLeft: '1rem', marginTop: '0.25rem'}}>
+                                            {pac.rows.sort((a, b) => {
+                                                if (a.date === 'Unknown') return 1;
+                                                if (b.date === 'Unknown') return -1;
+                                                return b.date.localeCompare(a.date);
+                                            }).map((row, i) => (
+                                                <div key={i} className="detail-row" style={{display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.3rem 0'}}>
+                                                    <span style={{width: '90px', color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace"}}>
+                                                        {fmtDate(row.date)}
+                                                    </span>
+                                                    <span className={`badge ${row.entityType === 'IND' ? 'badge-blue' : 'badge-orange'}`}>
+                                                        {row.entityType === 'IND' ? 'IND' : 'PAC'}
+                                                    </span>
+                                                    <span style={{fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: '0.85rem', minWidth: '80px'}}>
+                                                        {fmt(row.amount)}
+                                                    </span>
+                                                    <span style={{color: 'var(--text-muted)', fontSize: '0.75rem', flex: 1}}>
+                                                        {row.contributorName}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                ))}
+                            </div>
+
+                            {/* Source note */}
+                            <div className="about-box">
+                                <strong>Source:</strong> FEC Schedule A filings via the OpenFEC API.
+                                This tool tracks contributions raised by candidates — it does not currently include independent expenditures
+                                (money spent on behalf of or against a candidate, reported on Schedule E).
+                                PAC list sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
                             </div>
                         </>
                     )}
-                    
-                    <div className="help-section">
-                        <h3>How to Use</h3>
-                        <ol>
-                            <li>Go to <a href="https://www.fec.gov/data/receipts/?data_type=processed" target="_blank" rel="noopener noreferrer">FEC.gov Receipts</a></li>
-                            <li>Search for your candidate's committee and filter as needed</li>
-                            <li>Click "Export" and download the CSV file</li>
-                            <li>Upload the CSV file using the button above</li>
-                        </ol>
-                        
-                        <div className="filter-info" style={{marginTop: '1rem'}}>
-                            <strong>Key Methodology Points:</strong><br/>
-                            • <code>memo_code != 'X'</code> filter prevents double-counting earmarked contributions<br/>
-                            • Bundled Individual = Individual donors giving through PAC's conduit system (entity_type=IND)<br/>
-                            • Direct PAC = PAC treasury contributions (entity_type=PAC, limited to $5,000/election)
+
+                    {/* Debug log — collapsible */}
+                    {statusLog.length > 0 && (
+                        <div style={{marginTop: '1rem'}}>
+                            <div className="collapsible-toggle" onClick={() => setShowLog(!showLog)}>
+                                <span>{showLog ? '▾' : '▸'}</span>
+                                <span>Debug log ({statusLog.length} entries) — {filterStats ? `${filterStats.apiCalls} API calls` : ''}</span>
+                            </div>
+                            {showLog && (
+                                <div className="log-container">
+                                    {statusLog.map((s, i) => (
+                                        <div key={i} className={s.type}>
+                                            [{s.ts}] {s.msg}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
+                    )}
+
+                    {/* Instructions (shown when no results) */}
+                    {!results && !loading && !error && (
+                        <div className="about-box" style={{marginTop: '1rem'}}>
+                            <strong>Getting started:</strong> Type a candidate's name in the search box above and select them
+                            from the dropdown. Click "Analyze" to pull their contribution data from the FEC. The analysis may
+                            take a minute or two for candidates with large fundraising histories.
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="footer-contact">
+                        <strong>About this tool:</strong> Built to make pro-Israel PAC contributions to federal candidates
+                        more transparent and accessible. Data comes directly from FEC filings. The list of {PAC_COUNT} tracked
+                        PACs is sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                        <br/><br/>
+                        Questions, issues, or feedback? Contact: <strong>admin@yourreprecord.org</strong>
+                        <br/>
+                        <span style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
+                            This tool is for informational purposes only. Always verify data against official FEC records at{' '}
+                            <a href="https://www.fec.gov" target="_blank" rel="noopener">fec.gov</a>.
+                        </span>
                     </div>
                 </div>
             );
         }
-        
+
         ReactDOM.render(<FECAnalyzer />, document.getElementById('root'));
     </script>
 </body>
