@@ -474,6 +474,7 @@
             const [showLog, setShowLog] = useState(false);
             const [rateLimited, setRateLimited] = useState(false);
             const [latestDate, setLatestDate] = useState(null);
+            const [ieResults, setIeResults] = useState(null);
 
             const searchTimeout = useRef(null);
             const apiCallCount = useRef(0);
@@ -528,9 +529,8 @@
             const fetchPacContributions = async (committeeId, pacIds) => {
                 const allResults = [];
 
-                // Batch PAC IDs to keep URLs under length limits
-                // ~20 IDs per batch keeps URLs well under 2000 chars
-                const batchSize = 20;
+                // Batch PAC IDs — FEC API limits to 10 values per multi-value param
+                const batchSize = 10;
                 const batches = [];
                 for (let i = 0; i < pacIds.length; i += batchSize) {
                     batches.push(pacIds.slice(i, i + batchSize));
@@ -634,6 +634,113 @@
                 return allResults;
             };
 
+            // ── Fetch Schedule E (independent expenditures) by PACs targeting a candidate ──
+            // Schedule E: committee_id = who is SPENDING, candidate_id = who is TARGETED
+            const fetchPacExpenditures = async (candidateId, pacIds) => {
+                const allResults = [];
+                const batchSize = 10;
+                const batches = [];
+                for (let i = 0; i < pacIds.length; i += batchSize) {
+                    batches.push(pacIds.slice(i, i + batchSize));
+                }
+
+                for (let b = 0; b < batches.length; b++) {
+                    const batch = batches[b];
+                    const committeeParams = batch.map(id => `&committee_id=${id}`).join('');
+
+                    let retries = 0;
+                    let lastIndex = null;
+                    let lastExpDate = null;
+                    let hasMore = true;
+                    let page = 1;
+                    const perPage = 100;
+
+                    while (hasMore) {
+                        let url = `https://api.open.fec.gov/v1/schedules/schedule_e/?candidate_id=${candidateId}&per_page=${perPage}&api_key=${API_KEY}${committeeParams}`;
+
+                        if (lastIndex && lastExpDate) {
+                            url += `&last_index=${lastIndex}&last_expenditure_date=${encodeURIComponent(lastExpDate)}`;
+                        }
+
+                        try {
+                            const controller = new AbortController();
+                            const timeout = setTimeout(() => controller.abort(), 30000);
+                            const resp = await fetch(url, { signal: controller.signal });
+                            clearTimeout(timeout);
+                            apiCallCount.current++;
+
+                            if (resp.status === 429 || resp.status === 502 || resp.status === 504) {
+                                retries++;
+                                const reason = resp.status === 429 ? 'Rate limited' : `Server timeout (${resp.status})`;
+                                if (retries <= 3) {
+                                    const waitSec = retries * 5;
+                                    addStatus(`${reason} — waiting ${waitSec}s then retrying...`, 'warn');
+                                    await new Promise(r => setTimeout(r, waitSec * 1000));
+                                    continue;
+                                }
+                                addStatus(`${reason} after 3 retries — returning partial results`, 'warn');
+                                setRateLimited(true);
+                                hasMore = false;
+                                break;
+                            }
+                            retries = 0;
+
+                            if (!resp.ok) {
+                                let errBody = '';
+                                try { errBody = await resp.text(); } catch(e) {}
+                                addStatus(`Schedule E API error ${resp.status}: ${errBody.substring(0, 200)}`, 'error');
+                                hasMore = false;
+                                break;
+                            }
+
+                            const data = await resp.json();
+                            const rows = data.results || [];
+                            allResults.push(...rows);
+
+                            if (page === 1 && rows.length > 0) {
+                                addStatus(`Schedule E batch ${b + 1}/${batches.length}: ${rows.length} rows (page 1)`);
+                            }
+
+                            const lastIndexes = data.pagination?.last_indexes;
+                            if (!lastIndexes || !lastIndexes.last_index || rows.length < perPage) {
+                                hasMore = false;
+                            } else {
+                                lastIndex = lastIndexes.last_index;
+                                lastExpDate = lastIndexes.last_expenditure_date;
+                            }
+
+                            if (hasMore) {
+                                await new Promise(r => setTimeout(r, 250));
+                            }
+
+                            page++;
+                        } catch (e) {
+                            if (e.name === 'AbortError') {
+                                retries++;
+                                if (retries <= 3) {
+                                    const waitSec = retries * 5;
+                                    addStatus(`Request timed out — waiting ${waitSec}s then retrying...`, 'warn');
+                                    await new Promise(r => setTimeout(r, waitSec * 1000));
+                                    continue;
+                                }
+                                addStatus('Schedule E timed out after 3 retries — returning partial results', 'warn');
+                                setRateLimited(true);
+                                hasMore = false;
+                            } else {
+                                addStatus(`Schedule E fetch error: ${e.message}`, 'error');
+                                hasMore = false;
+                            }
+                        }
+                    }
+
+                    if (b < batches.length - 1) {
+                        await new Promise(r => setTimeout(r, 250));
+                    }
+                }
+
+                return allResults;
+            };
+
             // ── Main Analysis ──
             const runAnalysis = async () => {
                 if (!selectedCandidate) return;
@@ -641,6 +748,7 @@
                 setLoading(true);
                 setError(null);
                 setResults(null);
+                setIeResults(null);
                 setFilterStats(null);
                 setStatusLog([]);
                 setRateLimited(false);
@@ -698,20 +806,38 @@
                     });
 
                     if (matched.length === 0) {
-                        setError('No pro-Israel PAC contributions found for this candidate.');
-                        setLoading(false);
-                        return;
+                        addStatus('No Schedule A contributions found — checking Schedule E...', 'warn');
+                    } else {
+                        // Find latest transaction date from Schedule A
+                        let maxDate = null;
+                        matched.forEach(row => {
+                            const d = row.contribution_receipt_date;
+                            if (d && (!maxDate || d > maxDate)) maxDate = d;
+                        });
+                        setLatestDate(maxDate);
+
+                        analyzeContributions(matched);
                     }
 
-                    // Find latest transaction date
-                    let maxDate = null;
-                    matched.forEach(row => {
-                        const d = row.contribution_receipt_date;
-                        if (d && (!maxDate || d > maxDate)) maxDate = d;
-                    });
-                    setLatestDate(maxDate);
+                    // ── Schedule E: Independent Expenditures ──
+                    addStatus('Fetching Schedule E (independent expenditures)...');
+                    const ieRaw = await fetchPacExpenditures(selectedCandidate.candidate_id, pacIds);
+                    addStatus(`Schedule E: ${ieRaw.length.toLocaleString()} expenditure records found`, 'success');
 
-                    analyzeContributions(matched);
+                    if (ieRaw.length > 0) {
+                        const ieFiltered = ieRaw.filter(row => {
+                            const mc = (row.memo_code || '').toString().trim().toUpperCase();
+                            return mc !== 'X';
+                        });
+                        if (ieFiltered.length < ieRaw.length) {
+                            addStatus(`Schedule E de-duplication: excluded ${(ieRaw.length - ieFiltered.length).toLocaleString()} memo entries`, 'success');
+                        }
+                        analyzeExpenditures(ieFiltered);
+                    }
+
+                    if (matched.length === 0 && ieRaw.length === 0) {
+                        setError('No pro-Israel PAC activity found for this candidate (no contributions or independent expenditures).');
+                    }
 
                 } catch (err) {
                     addStatus(`Error: ${err.message}`, 'error');
@@ -797,6 +923,80 @@
                 });
             };
 
+            // ── Analyze Schedule E (Independent Expenditures) ──
+            const analyzeExpenditures = (expenditures) => {
+                const allYears = new Set();
+                let totalAmount = 0;
+                let supportTotal = 0;
+                let opposeTotal = 0;
+                let supportCount = 0;
+                let opposeCount = 0;
+                const byPac = {};
+
+                expenditures.forEach(row => {
+                    const amount = parseFloat(row.expenditure_amount) || 0;
+                    const pacId = (row.committee_id || '').trim().toUpperCase();
+                    const pacName = ISRAEL_PACS[pacId] || row.committee?.name || pacId;
+                    const soInd = (row.support_oppose_indicator || '').trim().toUpperCase();
+
+                    let year = row.two_year_transaction_period
+                        || row.fec_election_year
+                        || null;
+                    year = year ? String(year) : 'Unknown';
+                    allYears.add(year);
+
+                    const isSupport = soInd === 'S';
+                    const isOppose = soInd === 'O';
+
+                    totalAmount += amount;
+                    if (isSupport) { supportTotal += amount; supportCount++; }
+                    if (isOppose) { opposeTotal += amount; opposeCount++; }
+
+                    if (!byPac[pacId]) {
+                        byPac[pacId] = {
+                            pacId, pacName,
+                            total: 0, support: 0, oppose: 0,
+                            supportCount: 0, opposeCount: 0,
+                            byYear: {}, rows: []
+                        };
+                    }
+                    byPac[pacId].total += amount;
+                    if (isSupport) { byPac[pacId].support += amount; byPac[pacId].supportCount++; }
+                    if (isOppose) { byPac[pacId].oppose += amount; byPac[pacId].opposeCount++; }
+
+                    if (!byPac[pacId].byYear[year]) {
+                        byPac[pacId].byYear[year] = { support: 0, oppose: 0, total: 0 };
+                    }
+                    byPac[pacId].byYear[year].total += amount;
+                    if (isSupport) byPac[pacId].byYear[year].support += amount;
+                    if (isOppose) byPac[pacId].byYear[year].oppose += amount;
+
+                    byPac[pacId].rows.push({
+                        date: row.expenditure_date || 'Unknown',
+                        amount, soInd, year,
+                        description: row.expenditure_description || '',
+                        payee: row.payee_name || ''
+                    });
+                });
+
+                const sortedYears = Array.from(allYears).sort();
+                const sortedPacs = Object.values(byPac).sort((a, b) => b.total - a.total);
+
+                const cycleLabel = (y) => {
+                    const n = parseInt(y);
+                    if (isNaN(n)) return y;
+                    return `${n - 1}–${n}`;
+                };
+
+                setIeResults({
+                    totalAmount, supportTotal, opposeTotal,
+                    supportCount, opposeCount,
+                    totalCount: expenditures.length,
+                    years: sortedYears, pacs: sortedPacs,
+                    cycleLabel
+                });
+            };
+
             const fmt = (n) => new Intl.NumberFormat('en-US', {
                 style: 'currency', currency: 'USD',
                 minimumFractionDigits: 0, maximumFractionDigits: 0
@@ -819,10 +1019,13 @@
                     </div>
 
                     <div className="about-box">
-                                <strong>Source:</strong> FEC Schedule A filings via the OpenFEC API.
-                                This tool tracks contributions raised by candidates — it does not currently include independent expenditures
-                                (money spent on behalf of or against a candidate, reported on Schedule E).
-                                PAC list sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                        <strong>How it works:</strong> This tool pulls data directly from the
+                        FEC (Federal Election Commission) for any candidate you search. It identifies activity
+                        from {PAC_COUNT} pro-Israel political action committees tracked
+                        by <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                        Results cover two types of PAC activity: <strong>contributions</strong> (money raised by the candidate from these PACs,
+                        including bundled individual donations — Schedule A) and <strong>independent expenditures</strong> (money spent
+                        by these PACs on behalf of or against the candidate — Schedule E). Results are grouped by election cycle.
                     </div>
 
                     {/* Search */}
@@ -894,6 +1097,14 @@
                             )}
 
                             {/* Summary cards */}
+                            <div style={{marginBottom: '0.5rem'}}>
+                                <h2 style={{fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.25rem'}}>
+                                    Contributions Raised (Schedule A)
+                                </h2>
+                                <p style={{color: 'var(--text-secondary)', fontSize: '0.85rem'}}>
+                                    Money given directly to the candidate's campaign by pro-Israel PACs and individuals bundled through them.
+                                </p>
+                            </div>
                             <div className="stats-grid">
                                 <div className="stat-card">
                                     <div className="stat-label">Total Raised from Pro-Israel PACs</div>
@@ -1008,9 +1219,9 @@
                                 </div>
                             </div>
 
-                            {/* Transaction Details */}
+                            {/* Transaction Details — Schedule A */}
                             <div className="section">
-                                <h2>Transaction Details</h2>
+                                <h2>Contribution Details (Schedule A)</h2>
                                 <div className="section-desc">Individual contributions sorted by date (most recent first)</div>
                                 {results.pacs.map(pac => (
                                     <details key={pac.pacId} style={{marginBottom: '0.75rem'}}>
@@ -1042,15 +1253,189 @@
                                     </details>
                                 ))}
                             </div>
+                        </>
+                    )}
 
-                            {/* Source note */}
-                            <div className="about-box">
-                                <strong>Source:</strong> FEC Schedule A filings via the OpenFEC API.
-                                This tool tracks contributions raised by candidates — it does not currently include independent expenditures
-                                (money spent on behalf of or against a candidate, reported on Schedule E).
-                                PAC list sourced from <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                    {/* ═══════════════════════════════════════════
+                        SCHEDULE E: INDEPENDENT EXPENDITURES
+                       ═══════════════════════════════════════════ */}
+                    {ieResults && (
+                        <>
+                            <div style={{borderTop: '3px solid var(--border)', margin: '2rem 0 1.5rem', paddingTop: '1.5rem'}}>
+                                <h2 style={{fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.25rem'}}>
+                                    Independent Expenditures (Schedule E)
+                                </h2>
+                                <p style={{color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1rem'}}>
+                                    Money spent by pro-Israel PACs on behalf of or against this candidate — not given to the campaign directly.
+                                </p>
+                            </div>
+
+                            {/* IE Summary cards */}
+                            <div className="stats-grid">
+                                <div className="stat-card">
+                                    <div className="stat-label">Total Independent Expenditures</div>
+                                    <div className="stat-value green">{fmt(ieResults.totalAmount)}</div>
+                                    <div className="stat-detail">{ieResults.totalCount} expenditures</div>
+                                </div>
+                                <div className="stat-card">
+                                    <div className="stat-label">Spent Supporting</div>
+                                    <div className="stat-value accent">{fmt(ieResults.supportTotal)}</div>
+                                    <div className="stat-detail">{ieResults.supportCount} expenditures in favor</div>
+                                </div>
+                                <div className="stat-card">
+                                    <div className="stat-label">Spent Opposing</div>
+                                    <div className="stat-value" style={{color: 'var(--red)'}}>{fmt(ieResults.opposeTotal)}</div>
+                                    <div className="stat-detail">{ieResults.opposeCount} expenditures against</div>
+                                </div>
+                                <div className="stat-card">
+                                    <div className="stat-label">PACs Spending</div>
+                                    <div className="stat-value purple">{ieResults.pacs.length}</div>
+                                    <div className="stat-detail">of {PAC_COUNT} tracked</div>
+                                </div>
+                            </div>
+
+                            {/* IE Breakdown table */}
+                            <div className="section">
+                                <h2>Expenditures by PAC and Election Cycle</h2>
+                                <div className="section-desc">
+                                    <span className="badge badge-green" style={{marginRight: '0.5rem'}}>Support</span>
+                                    <span className="badge" style={{background: 'var(--red-dim)', color: 'var(--red)'}}>Oppose</span>
+                                </div>
+                                <div style={{overflowX: 'auto'}}>
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>PAC</th>
+                                                <th>Type</th>
+                                                {ieResults.years.map(y => <th key={y} className="num">{ieResults.cycleLabel(y)}</th>)}
+                                                <th className="num">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {ieResults.pacs.map(pac => (
+                                                <React.Fragment key={pac.pacId}>
+                                                    {pac.supportCount > 0 && (
+                                                        <tr>
+                                                            <td style={{maxWidth: '250px'}}>
+                                                                <div style={{fontWeight: 600, fontSize: '0.82rem'}}>{pac.pacName}</div>
+                                                                <div style={{color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace"}}>{pac.pacId}</div>
+                                                            </td>
+                                                            <td><span className="badge badge-green">FOR</span></td>
+                                                            {ieResults.years.map(y => (
+                                                                <td key={y} className="num">
+                                                                    {pac.byYear[y]?.support ? fmt(pac.byYear[y].support) : '—'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="num" style={{fontWeight: 700, color: 'var(--green)'}}>
+                                                                {fmt(pac.support)}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                    {pac.opposeCount > 0 && (
+                                                        <tr>
+                                                            <td style={{maxWidth: '250px'}}>
+                                                                {pac.supportCount === 0 && (
+                                                                    <>
+                                                                        <div style={{fontWeight: 600, fontSize: '0.82rem'}}>{pac.pacName}</div>
+                                                                        <div style={{color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace"}}>{pac.pacId}</div>
+                                                                    </>
+                                                                )}
+                                                            </td>
+                                                            <td><span className="badge" style={{background: 'var(--red-dim)', color: 'var(--red)'}}>AGT</span></td>
+                                                            {ieResults.years.map(y => (
+                                                                <td key={y} className="num">
+                                                                    {pac.byYear[y]?.oppose ? fmt(pac.byYear[y].oppose) : '—'}
+                                                                </td>
+                                                            ))}
+                                                            <td className="num" style={{fontWeight: 700, color: 'var(--red)'}}>
+                                                                {fmt(pac.oppose)}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </React.Fragment>
+                                            ))}
+                                            <tr style={{borderTop: '3px solid var(--border)'}}>
+                                                <td style={{fontWeight: 700, fontSize: '0.9rem'}}>Grand Total</td>
+                                                <td></td>
+                                                {ieResults.years.map(y => {
+                                                    const yearTotal = ieResults.pacs.reduce((s, p) => s + (p.byYear[y]?.total || 0), 0);
+                                                    return <td key={y} className="num" style={{fontWeight: 700}}>{yearTotal ? fmt(yearTotal) : '—'}</td>;
+                                                })}
+                                                <td className="num" style={{fontWeight: 700, fontSize: '1rem', color: 'var(--green)'}}>
+                                                    {fmt(ieResults.totalAmount)}
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* IE Transaction Details */}
+                            <div className="section">
+                                <h2>Expenditure Details (Schedule E)</h2>
+                                <div className="section-desc">Individual expenditures sorted by date (most recent first)</div>
+                                {ieResults.pacs.map(pac => (
+                                    <details key={pac.pacId} style={{marginBottom: '0.75rem'}}>
+                                        <summary style={{padding: '0.5rem 0', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
+                                            {pac.pacName} — {fmt(pac.total)} ({pac.supportCount + pac.opposeCount} expenditures)
+                                        </summary>
+                                        <div style={{paddingLeft: '1rem', marginTop: '0.25rem'}}>
+                                            {pac.rows.sort((a, b) => {
+                                                if (a.date === 'Unknown') return 1;
+                                                if (b.date === 'Unknown') return -1;
+                                                return b.date.localeCompare(a.date);
+                                            }).map((row, i) => (
+                                                <div key={i} className="detail-row" style={{display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.3rem 0'}}>
+                                                    <span style={{width: '90px', color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace"}}>
+                                                        {fmtDate(row.date)}
+                                                    </span>
+                                                    <span className={`badge ${row.soInd === 'S' ? 'badge-green' : ''}`}
+                                                        style={row.soInd === 'O' ? {background: 'var(--red-dim)', color: 'var(--red)', display: 'inline-block', padding: '0.1rem 0.45rem', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 600, fontFamily: "'JetBrains Mono', monospace"} : {}}>
+                                                        {row.soInd === 'S' ? 'FOR' : 'AGT'}
+                                                    </span>
+                                                    <span style={{fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: '0.85rem', minWidth: '90px'}}>
+                                                        {fmt(row.amount)}
+                                                    </span>
+                                                    <span style={{color: 'var(--text-muted)', fontSize: '0.75rem', flex: 1}}>
+                                                        {row.description || row.payee}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                ))}
                             </div>
                         </>
+                    )}
+
+                    {/* Combined Total */}
+                    {(results || ieResults) && (
+                        <div className="stat-card" style={{
+                            background: 'var(--green-dim)',
+                            border: '2px solid rgba(22, 163, 74, 0.2)',
+                            marginBottom: '1.5rem',
+                            textAlign: 'center',
+                            padding: '1.25rem'
+                        }}>
+                            <div className="stat-label">Total Pro-Israel PAC Influence</div>
+                            <div className="stat-value green" style={{fontSize: '2rem'}}>
+                                {fmt((results?.totalAmount || 0) + (ieResults?.totalAmount || 0))}
+                            </div>
+                            <div className="stat-detail" style={{marginTop: '0.25rem'}}>
+                                {results ? `${fmt(results.totalAmount)} raised (Schedule A)` : 'No Schedule A contributions'}
+                                {results && ieResults ? ' + ' : ''}
+                                {ieResults ? `${fmt(ieResults.totalAmount)} spent (Schedule E)` : ''}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Source note */}
+                    {(results || ieResults) && (
+                        <div className="about-box">
+                            <strong>Source:</strong> FEC filings via the OpenFEC API —
+                            Schedule A (contributions to candidate) and Schedule E (independent expenditures targeting candidate).
+                            PAC list sourced from <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                        </div>
                     )}
 
                     {/* Debug log — collapsible */}
@@ -1085,7 +1470,7 @@
                     <div className="footer-contact">
                         <strong>About this tool:</strong> Built to make pro-Israel PAC contributions to federal candidates
                         more transparent and accessible. Data comes directly from FEC filings. The list of {PAC_COUNT} tracked
-                        PACs is sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                        PACs is sourced from <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>.
                         <br/><br/>
                         Questions, issues, or feedback? Contact: <strong>admin@yourreprecord.org</strong>
                         <br/>
