@@ -521,84 +521,113 @@
                 return ids;
             };
 
-            // ── Fetch All Contributions (paginated) ──
-            const fetchAllContributions = async (committeeId) => {
+            // ── Fetch contributions filtered by PAC contributor IDs (server-side) ──
+            // Instead of fetching ALL contributions and filtering client-side,
+            // we ask the FEC API to only return contributions from our tracked PACs.
+            // This reduces 30,000+ rows down to a few hundred.
+            const fetchPacContributions = async (committeeId, pacIds) => {
                 const allResults = [];
-                let retries = 0;
-                let lastIndex = null;
-                let lastDate = null;
-                let hasMore = true;
-                let page = 1;
-                const perPage = 100;
 
-                while (hasMore) {
-                    let url = `https://api.open.fec.gov/v1/schedules/schedule_a/?committee_id=${committeeId}&per_page=${perPage}&api_key=${API_KEY}`;
+                // Batch PAC IDs to keep URLs under length limits
+                // ~20 IDs per batch keeps URLs well under 2000 chars
+                const batchSize = 20;
+                const batches = [];
+                for (let i = 0; i < pacIds.length; i += batchSize) {
+                    batches.push(pacIds.slice(i, i + batchSize));
+                }
 
-                    if (lastIndex && lastDate) {
-                        url += `&last_index=${lastIndex}&last_contribution_receipt_date=${encodeURIComponent(lastDate)}`;
-                    }
+                for (let b = 0; b < batches.length; b++) {
+                    const batch = batches[b];
+                    const contributorParams = batch.map(id => `&contributor_id=${id}`).join('');
 
-                    if (page <= 3) {
-                        addStatus(`Page ${page}: fetching from ${committeeId}...`);
-                    }
+                    let retries = 0;
+                    let lastIndex = null;
+                    let lastDate = null;
+                    let hasMore = true;
+                    let page = 1;
+                    const perPage = 100;
 
-                    try {
-                        const resp = await fetch(url);
-                        apiCallCount.current++;
+                    while (hasMore) {
+                        let url = `https://api.open.fec.gov/v1/schedules/schedule_a/?committee_id=${committeeId}&per_page=${perPage}&api_key=${API_KEY}${contributorParams}`;
 
-                        if (resp.status === 429) {
-                            retries++;
-                            if (retries <= 3) {
-                                const waitSec = retries * 5;
-                                addStatus(`Rate limited — waiting ${waitSec}s then retrying (attempt ${retries}/3)...`, 'warn');
-                                await new Promise(r => setTimeout(r, waitSec * 1000));
-                                continue;
+                        if (lastIndex && lastDate) {
+                            url += `&last_index=${lastIndex}&last_contribution_receipt_date=${encodeURIComponent(lastDate)}`;
+                        }
+
+                        try {
+                            const controller = new AbortController();
+                            const timeout = setTimeout(() => controller.abort(), 30000);
+                            const resp = await fetch(url, { signal: controller.signal });
+                            clearTimeout(timeout);
+                            apiCallCount.current++;
+
+                            if (resp.status === 429 || resp.status === 502 || resp.status === 504) {
+                                retries++;
+                                const reason = resp.status === 429 ? 'Rate limited' : `Server timeout (${resp.status})`;
+                                if (retries <= 3) {
+                                    const waitSec = retries * 5;
+                                    addStatus(`${reason} — waiting ${waitSec}s then retrying (attempt ${retries}/3)...`, 'warn');
+                                    await new Promise(r => setTimeout(r, waitSec * 1000));
+                                    continue;
+                                }
+                                addStatus(`${reason} after 3 retries — returning partial results`, 'warn');
+                                setRateLimited(true);
+                                hasMore = false;
+                                break;
                             }
-                            addStatus('Rate limited after 3 retries — returning partial results', 'warn');
-                            setRateLimited(true);
-                            hasMore = false;
-                            break;
+                            retries = 0;
+
+                            if (!resp.ok) {
+                                let errBody = '';
+                                try { errBody = await resp.text(); } catch(e) {}
+                                addStatus(`API error ${resp.status}: ${errBody.substring(0, 200)}`, 'error');
+                                hasMore = false;
+                                break;
+                            }
+
+                            const data = await resp.json();
+                            const rows = data.results || [];
+                            allResults.push(...rows);
+
+                            if (page === 1 && rows.length > 0) {
+                                addStatus(`${committeeId} batch ${b + 1}/${batches.length}: ${rows.length} rows (page 1)`);
+                            }
+
+                            const lastIndexes = data.pagination?.last_indexes;
+                            if (!lastIndexes || !lastIndexes.last_index || rows.length < perPage) {
+                                hasMore = false;
+                            } else {
+                                lastIndex = lastIndexes.last_index;
+                                lastDate = lastIndexes.last_contribution_receipt_date;
+                            }
+
+                            if (hasMore) {
+                                await new Promise(r => setTimeout(r, 250));
+                            }
+
+                            page++;
+                        } catch (e) {
+                            if (e.name === 'AbortError') {
+                                retries++;
+                                if (retries <= 3) {
+                                    const waitSec = retries * 5;
+                                    addStatus(`Request timed out — waiting ${waitSec}s then retrying (attempt ${retries}/3)...`, 'warn');
+                                    await new Promise(r => setTimeout(r, waitSec * 1000));
+                                    continue;
+                                }
+                                addStatus('Request timed out after 3 retries — returning partial results', 'warn');
+                                setRateLimited(true);
+                                hasMore = false;
+                            } else {
+                                addStatus(`Fetch error: ${e.message}`, 'error');
+                                hasMore = false;
+                            }
                         }
-                        retries = 0;
+                    }
 
-                        if (!resp.ok) {
-                            let errBody = '';
-                            try { errBody = await resp.text(); } catch(e) {}
-                            addStatus(`API error ${resp.status}: ${errBody.substring(0, 200)}`, 'error');
-                            hasMore = false;
-                            break;
-                        }
-
-                        const data = await resp.json();
-                        const rows = data.results || [];
-                        allResults.push(...rows);
-
-                        if (page <= 3) {
-                            addStatus(`Page ${page}: ${rows.length} rows received`);
-                        }
-
-                        if (allResults.length % 1000 < perPage && allResults.length >= 1000) {
-                            addStatus(`...${allResults.length.toLocaleString()} rows fetched so far (page ${page})`);
-                        }
-
-                        // Pagination
-                        const lastIndexes = data.pagination?.last_indexes;
-                        if (!lastIndexes || !lastIndexes.last_index || rows.length < perPage) {
-                            hasMore = false;
-                        } else {
-                            lastIndex = lastIndexes.last_index;
-                            lastDate = lastIndexes.last_contribution_receipt_date;
-                        }
-
-                        // Delay between requests to avoid burst rate limits
-                        if (hasMore) {
-                            await new Promise(r => setTimeout(r, 250));
-                        }
-
-                        page++;
-                    } catch (e) {
-                        addStatus(`Fetch error: ${e.message}`, 'error');
-                        hasMore = false;
+                    // Small delay between batches
+                    if (b < batches.length - 1) {
+                        await new Promise(r => setTimeout(r, 250));
                     }
                 }
 
@@ -624,11 +653,14 @@
                         throw new Error('No committees found for this candidate');
                     }
 
+                    const pacIds = Object.keys(ISRAEL_PACS);
+                    addStatus(`Searching ${committeeIds.length} committee(s) for contributions from ${pacIds.length} tracked PACs...`);
+
                     let allRaw = [];
                     for (const cid of committeeIds) {
-                        addStatus(`Fetching contributions for ${cid}...`);
-                        const rows = await fetchAllContributions(cid);
-                        addStatus(`${cid}: ${rows.length.toLocaleString()} rows fetched`, 'success');
+                        addStatus(`Fetching from ${cid}...`);
+                        const rows = await fetchPacContributions(cid, pacIds);
+                        addStatus(`${cid}: ${rows.length.toLocaleString()} rows`, 'success');
                         allRaw.push(...rows);
                     }
 
@@ -643,13 +675,13 @@
                     const memoExcluded = beforeMemo - afterMemo.length;
                     addStatus(`De-duplication: excluded ${memoExcluded.toLocaleString()} memo entries`, 'success');
 
-                    // Match against tracked PAC list
+                    // Verify contributor_id matches (should already match from server filter, but confirm)
                     const matched = afterMemo.filter(row => {
                         const cid = (row.contributor_id || '').toString().trim().toUpperCase();
                         return cid && ISRAEL_PACS[cid];
                     });
 
-                    addStatus(`Matched: ${matched.length} contributions from tracked pro-Israel PACs`, 'success');
+                    addStatus(`Verified: ${matched.length} contributions from tracked pro-Israel PACs`, 'success');
                     addStatus(`API calls used: ${apiCallCount.current}`, 'info');
 
                     const memoExcludedAmount = allRaw
@@ -787,12 +819,10 @@
                     </div>
 
                     <div className="about-box">
-                        <strong>How it works:</strong> This tool pulls contribution records directly from the
-                        FEC (Federal Election Commission) for any candidate you search. It identifies donations
-                        from {PAC_COUNT} pro-Israel political action committees tracked
-                        by <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>,
-                        including both direct PAC contributions and individual donations bundled through these PACs.
-                        Results are grouped by election cycle. Data source is FEC Schedule A filings.
+                                <strong>Source:</strong> FEC Schedule A filings via the OpenFEC API.
+                                This tool tracks contributions raised by candidates — it does not currently include independent expenditures
+                                (money spent on behalf of or against a candidate, reported on Schedule E).
+                                PAC list sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
                     </div>
 
                     {/* Search */}
@@ -1018,7 +1048,7 @@
                                 <strong>Source:</strong> FEC Schedule A filings via the OpenFEC API.
                                 This tool tracks contributions raised by candidates — it does not currently include independent expenditures
                                 (money spent on behalf of or against a candidate, reported on Schedule E).
-                                PAC list sourced from <a href="https://docs.google.com/spreadsheets/d/1h3JASnY_LJ3sOOvBeXkDExfiL5a8Mx_5Oy2hZrCn6TU/edit?gid=1515232731#gid=1515232731" target="_blank" rel="noopener">TrackAIPAC.com</a>.
+                                PAC list sourced from <a href="https://trackaipac.com" target="_blank" rel="noopener">TrackAIPAC.com</a>.
                             </div>
                         </>
                     )}
